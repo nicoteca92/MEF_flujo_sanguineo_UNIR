@@ -1,0 +1,400 @@
+% Código construcción matriz de rigidez
+% Se consideran radios distintos para cada región
+% Región I: micropolar
+% Región II: Newtoniana
+% Región III: porosa
+syms r1_ [1 3]  %Radio región I con 3 nodos
+syms r2_ [1 3]  %Radio región II con 3 nodos 
+syms r3_ [1 3]  %Radio región III con 3 nodos
+syms u1_ [1 3]  %Veloc. región I con 3 nodos
+syms u2_ [1 3]  %Veloc. región II con 3 nodos
+syms u3_ [1 3]  %Veloc. región III con 3 nodos
+syms w [1 3]  %Veloc. microrotacional con 3 nodos
+syms P  % Presión
+syms E N m  % Elemento unidimensional, Parámetro micropolar, Núm. acoplam. micropolar
+syms Re1 Re2  % Núm. Reynolds hematocrito, núm. Reynolds plasma
+syms alf1 alf2 beta  % Resist. hidráulica hematocrito, Resist. hidr. plasma, Coef. Salto de Esfuerzo
+syms lamb2  % Relación de viscosidades
+syms d W L  % Diámetro capilar, Ancho nominal glucocáliz, Ancho contorno difuso
+syms F  % Función error complementaria
+
+% SECCIÓN 1
+% Variables auxiliares para la construcción de 
+% los residuos (Método de Residuos Ponderados)
+A1=2*E*(r1_(1)-2*r1_(2)+r1_(3))+r1_(3)-r1_(1);
+A2=2*E*(r2_(1)-2*r2_(2)+r2_(3))+r2_(3)-r2_(1);
+A3=2*E*(r3_(1)-2*r3_(2)+r3_(3))+r3_(3)-r3_(1);
+B1=2*E*(u1_(1)-2*u1_(2)+u1_(3))+u1_(3)-u1_(1);
+B2=2*E*(u2_(1)-2*u2_(2)+u2_(3))+u2_(3)-u2_(1);
+B3=2*E*(u3_(1)-2*u3_(2)+u3_(3))+u3_(3)-u3_(1);
+B4=2*E*(w(1)-2*w(2)+w(3))+w(3)-w(1);
+C1=(u2_(1)-2*u2_(2)+u2_(3))*E^2+(u2_(3)-u2_(1))*E+2*u2_(2);
+C2=(u3_(1)-2*u3_(2)+u3_(3))*E^2+(u3_(3)-u3_(1))*E+2*u3_(2);
+C3=(w(1)-2*w(2)+w(3))*E^2+(w(3)-w(1))*E+2*w(2);
+D11=(r1_(3)-r1_(1))*E+2*r1_(2);
+D12=-4*(r1_(1)-2*r1_(2)+r1_(3));
+D21=(r2_(3)-r2_(1))*E+2*r2_(2);
+D22=-4*(r2_(1)-2*r2_(2)+r2_(3));
+D31=(r3_(3)-r3_(1))*E+2*r3_(2);
+D32=-4*(r3_(1)-2*r3_(2)+r3_(3));
+
+% Residuos del Método de Residuos Ponderados
+R1=(B1/A1)*((D12/A1^2)+2/D11)+m*((B4/A1)+(C3/D11))-Re1*P; % Región I
+R2=(B4/A1)*((D12/A1^2)+1)-(C3*(1/D11+N))-N*(B1/A1); % Región I
+R3=(B2/A2)*((D22/A2^2)+2/D21)-((alf1/4)*F).*C1-Re2*P; % Región II
+R4=lamb2*(B3/A3)*((D32/A3^2)+2/D31)-(alf2^2/2)*C2-Re2*P; % Región III
+
+% Funciones de interpolación
+FI1=-E*(1-E)/2;
+FI2=(1+E)*(1-E);
+FI3=E*(1+E)/2;
+
+
+%% SECCIÓN 2: Integración numérica
+% Se plantean los elementos de la integración numérica
+M1=R1*FI1; % Región I
+M2=R1*FI2; % Región I
+M3=R1*FI3; % Región I
+M4=R2*FI1; % Región I
+M5=R2*FI2; % Región I
+M6=R2*FI3; % Región I
+M7=R3*FI1; % Región II
+M8=R3*FI2; % Región II
+M9=R3*FI3; % Región II
+M10=R4*FI1; % Región III
+M11=R4*FI2; % Región III
+M12=R4*FI3; % Región III
+
+% Construcción de objetos inline
+funN1=inline(M1);
+funN2=inline(M2);
+funN3=inline(M3);
+funN4=inline(M4);
+funN5=inline(M5);
+funN6=inline(M6);
+funN7=inline(M7);
+funN8=inline(M8);
+funN9=inline(M9);
+funN10=inline(M10);
+funN11=inline(M11);
+funN12=inline(M12);
+
+
+%% SECCIÓN 3: Valores de los parámetros
+m=0.5;% Va desde 0.1 hasta 0.9
+N=30;% Va desde 10 hasta 50
+alf2=5;% Va desde 1 hasta 9
+Ep=0.5;% Es la relación entre visc.2/(visc.1+vortex)
+lamb2=1.2; beta=0.5;
+P=8;% Varía desde 5 hasta 11
+Re1=0.05; Re2=0.09;% Los Reynolds siempre serán menores a 1 dado que las fuerzas viscosas son las dominantes
+alf1=7; d=7; W=0.8; L=157;% alf1 varía de 3 a 11
+
+% r(1)=0;
+r1_(3)=1;
+r1_(2)=0.5;
+h=0.2;  % 
+E=[-1, -0.8, -0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6, 0.8, 1];
+r2_(1)=1;
+r2_(2)=1.5;
+r2_(3)=2.0;
+r3_(1)=2.0;
+r3_(2)=2.5;
+r3_(3)=3.0;
+re=0:0.05:0.5;
+re1=0:0.025:0.5;
+% F=erfc((d-2*W+(-r2_(3))*E+2*r2_(2))/(2*L));
+F=erfc((d-2*W-re)/(2*L));
+F=vpa(F);
+
+% Creación de matrices auxiliares (pasos para Extrapolación de Richardson) 
+% para el cálculo de los coef. de las Matrices de Rigidez Local
+n=length(E);
+p=ones(1,n);
+p1=ones(1,n1);
+p=[p(1) p(2:end-1)*2 p(end)];
+p1=[p1(1) p1(2:end-1)*2 p1(end)];
+
+%% SECCIÓN 4: Se efectúa la integración numérica para obetener las MATRICES DE RIGIDEZ LOCAL, es decir,
+% cada una de las filas de las matrices que se encuentran en las ec. 50-53 del archivo Pdf equivalen
+% a K1, K2,..., K12 representados líneas abajo. 
+% N_i son las la sustitución de las variables en la función con respecto al 
+% elemento unidimensional E para hallar la integral desde -1 hasta +1. Es un matriz de 1x11
+
+N1=feval(funN1,E,P,Re1,m,r1_(1),r1_(2),r1_(3),u1_(1),u1_(2),u1_(3),w(1),w(2),w(3));
+O1=(h/2)*sum(N1.*p); % Esto es la sumatoria de términos, o sea, la integral que es igual a cero
+NP1=feval(funN1,E1,P,Re1,m,r1_(1),r1_(2),r1_(3),u1_(1),u1_(2),u1_(3),w(1),w(2),w(3));
+OP1=(h/4)*sum(NP1.*p1);
+I1=(4*O1-OP1)/3;
+% Cuando r=0 el esfuerzo se hace infinito pero la condicón de contorno
+% indica que debe ser finito
+IS1=factor(I1,[u1_(1) u1_(2) u1_(3) w(1) w(2) w(3)]);%Se factoriza r_1
+IS1(1)=IS1(1)*r1_(1);% Se elimina r_1 del denomidor para de tau en cero sea un valor finito (primera condición).
+% No se generan problemas con multiplicar por r_1 porque la ecuación, es
+% decir la integral está igualada a cero según Galerkin
+T1=subs(IS1,r1_(1),0);% Se sustituye r_1=0 en la integral. Aquí los términos ya quedan en función de las variables u y w
+AT10=vectorize(T1(2));%Empieza el acondicinamiento del resultado para convertirlo en una matriz
+AT11=regexprep(AT10,'[.*_uw]1','');
+AT12=regexprep(AT11,'[.*_uw]2','');
+AT13=regexprep(AT12,'[.*_uw]3','');
+AT14=regexprep(AT13,'[.*]','');
+AT15=regexprep(AT14,'[+]\s',' ');
+AT16=regexprep(AT15,'[-]\s','-');
+AT17=regexp(AT16,'\s*','split');
+K1=T1(1)*str2double(AT17([1 2 3 4]));
+K1=vpa(K1);
+
+N2=feval(funN2,E,P,Re1,m,r1_(1),r1_(2),r1_(3),u1_(1),u1_(2),u1_(3),w(1),w(2),w(3));
+O2=(h/2)*sum(N2.*p);
+NP2=feval(funN2,E1,P,Re1,m,r1_(1),r1_(2),r1_(3),u1_(1),u1_(2),u1_(3),w(1),w(2),w(3));
+OP2=(h/4)*sum(NP2.*p1);
+I2=(4*O2-OP2)/3;
+IS2=factor(I2,[u1_(1) u1_(2) u1_(3) w(1) w(2) w(3)]);
+T2=subs(IS2,r1_(1),0);
+AT20=vectorize(T2(2));
+AT21=regexprep(AT20,'[.*_uw]1','');
+AT22=regexprep(AT21,'[.*_uw]2','');
+AT23=regexprep(AT22,'[.*_uw]3','');
+AT24=regexprep(AT23,'[.*]','');
+AT25=regexprep(AT24,'[+]\s',' ');
+AT26=regexprep(AT25,'[-]\s','-');
+AT27=regexp(AT26,'\s*','split');
+K2=T2(1)*str2double(AT27([2 1 3 4 5 6 7]));
+K2=vpa(K2);
+
+N3=feval(funN3,E,P,Re1,m,r1_(1),r1_(2),r1_(3),u1_(1),u1_(2),u1_(3),w(1),w(2),w(3));
+O3=(h/2)*sum(N3.*p);
+NP3=feval(funN3,E1,P,Re1,m,r1_(1),r1_(2),r1_(3),u1_(1),u1_(2),u1_(3),w(1),w(2),w(3));
+OP3=(h/4)*sum(NP3.*p1);
+I3=(4*O3-OP3)/3;
+IS3=factor(I3,[u1_(1) u1_(2) u1_(3) w(1) w(2) w(3)]);
+T3=subs(IS3,r1_(1),0);
+AT30=vectorize(T3(2));
+AT31=regexprep(AT30,'[.*_uw]1','');
+AT32=regexprep(AT31,'[.*_uw]2','');
+AT33=regexprep(AT32,'[.*_uw]3','');
+AT34=regexprep(AT33,'[.*]','');
+AT35=regexprep(AT34,'[+]\s',' ');
+AT36=regexprep(AT35,'[-]\s','-');
+AT37=regexp(AT36,'\s*','split');
+K3=T3(1)*str2double(AT37([1 2 3 4 5 6 7]));
+K3=vpa(K3);
+
+N4=feval(funN4,E,N,r1_(1),r1_(2),r1_(3),u1_(1),u1_(2),u1_(3),w(1),w(2),w(3));
+O4=(h/2)*sum(N4.*p);
+NP4=feval(funN4,E1,N,r1_(1),r1_(2),r1_(3),u1_(1),u1_(2),u1_(3),w(1),w(2),w(3));
+OP4=(h/4)*sum(NP4.*p1);
+I4=(4*O4-OP4)/3;
+IS4=factor(I4,[u1_(1) u1_(2) u1_(3) w(1) w(2) w(3)]);
+IS4(1)=IS4(1)*r1_(1);
+T4=subs(IS4,r1_(1),0);
+AT40=vectorize(T4(2));
+AT41=regexprep(AT40,'[.*_uw]1','');
+AT42=regexprep(AT41,'[.*_uw]2','');
+AT43=regexprep(AT42,'[.*_uw]3','');
+AT44=regexprep(AT43,'[.*]','');
+AT45=regexprep(AT44,'[+]\s',' ');
+AT46=regexprep(AT45,'[-]\s','-');
+AT47=regexp(AT46,'\s*','split');
+K4=T4(1)*str2double(AT47(1:end));
+K4=vpa(K4);
+
+N5=feval(funN5,E,N,r1_(1),r1_(2),r1_(3),u1_(1),u1_(2),u1_(3),w(1),w(2),w(3));
+O5=(h/2)*sum(N5.*p);
+NP5=feval(funN5,E1,N,r1_(1),r1_(2),r1_(3),u1_(1),u1_(2),u1_(3),w(1),w(2),w(3));
+OP5=(h/4)*sum(NP5.*p1);
+I5=(4*O5-OP5)/3;
+IS5=factor(I5,[u1_(1) u1_(2) u1_(3) w(1) w(2) w(3)]);
+T5=subs(IS5,r1_(1),0);
+AT50=vectorize(T5(2));
+AT51=regexprep(AT50,'[.*_uw]1','');
+AT52=regexprep(AT51,'[.*_uw]2','');
+AT53=regexprep(AT52,'[.*_uw]3','');
+AT54=regexprep(AT53,'[.*]','');
+AT55=regexprep(AT54,'[+]\s',' ');
+AT56=regexprep(AT55,'[-]\s','-');
+AT57=regexp(AT56,'\s*','split');
+K5=T5(1)*str2double(AT57(1:end));
+K5=vpa(K5);
+
+N6=feval(funN6,E,N,r1_(1),r1_(2),r1_(3),u1_(1),u1_(2),u1_(3),w(1),w(2),w(3));
+O6=(h/2)*sum(N6.*p);
+NP6=feval(funN6,E1,N,r1_(1),r1_(2),r1_(3),u1_(1),u1_(2),u1_(3),w(1),w(2),w(3));
+OP6=(h/4)*sum(NP6.*p1);
+I6=(4*O6-OP6)/3;
+IS6=factor(I6,[u1_(1) u1_(2) u1_(3) w(1) w(2) w(3)]);
+T6=subs(IS6,r1_(1),0);
+AT60=vectorize(T6(2));
+AT61=regexprep(AT60,'[.*_uw]1','');
+AT62=regexprep(AT61,'[.*_uw]2','');
+AT63=regexprep(AT62,'[.*_uw]3','');
+AT64=regexprep(AT63,'[.*]','');
+AT65=regexprep(AT64,'[+]\s',' ');
+AT66=regexprep(AT65,'[-]\s','-');
+AT67=regexp(AT66,'\s*','split');
+K6=T6(1)*str2double(AT67([2 1 3 4 5 6]));
+K6=vpa(K6);
+
+N7=feval(funN7,E,F,P,Re2,alf1,r2_(1),r2_(2),r2_(3),u2_(1),u2_(2),u2_(3));
+O7=(h/2)*sum(N7.*p);
+NP7=feval(funN7,E1,F1,P,Re2,alf1,r2_(1),r2_(2),r2_(3),u2_(1),u2_(2),u2_(3));
+OP7=(h/4)*sum(NP7.*p1);
+I7=(4*O7-OP7)/3;
+I7=vpa(I7);
+AT70=vectorize(I7);
+AT71=regexprep(AT70,'[*_uw]1','');
+AT72=regexprep(AT71,'[*_uw]2','');
+AT73=regexprep(AT72,'[*_uw]3','');
+AT74=regexprep(AT73,'[*]\s*',' ');
+AT75=regexprep(AT74,'[+]\s',' ');
+AT76=regexprep(AT75,'[-]\s','-');
+AT77=regexprep(AT76,'[.\s]\s',' ');
+AT78=regexp(AT77,'\s*','split');
+K7=str2double(AT78([2 1 3 4]));
+
+N8=feval(funN8,E,F,P,Re2,alf1,r2_(1),r2_(2),r2_(3),u2_(1),u2_(2),u2_(3));
+O8=(h/2)*sum(N8.*p);
+NP8=feval(funN8,E1,F1,P,Re2,alf1,r2_(1),r2_(2),r2_(3),u2_(1),u2_(2),u2_(3));
+OP8=(h/4)*sum(NP8.*p1);
+I8=(4*O8-OP8)/3;
+I8=vpa(I8);
+AT80=vectorize(I8);
+AT81=regexprep(AT80,'[*_uw]1','');
+AT82=regexprep(AT81,'[*_uw]2','');
+AT83=regexprep(AT82,'[*_uw]3','');
+AT84=regexprep(AT83,'[.*]\s',' ');
+AT85=regexprep(AT84,'[+]\s',' ');
+AT86=regexprep(AT85,'[-]\s','-');
+AT87=regexprep(AT86,'[.\s]\s',' ');
+AT88=regexp(AT87,'\s*','split');
+K8=str2double(AT88([3 2 1 4]));
+
+N9=feval(funN9,E,F,P,Re2,alf1,r2_(1),r2_(2),r2_(3),u2_(1),u2_(2),u2_(3));
+O9=(h/2)*sum(N9.*p);
+NP9=feval(funN9,E1,F1,P,Re2,alf1,r2_(1),r2_(2),r2_(3),u2_(1),u2_(2),u2_(3));
+OP9=(h/4)*sum(NP9.*p1);
+I9=(4*O9-OP9)/3;
+I9=vpa(I9);
+AT90=vectorize(I9);
+AT91=regexprep(AT90,'[*_uw]1','');
+AT92=regexprep(AT91,'[*_uw]2','');
+AT93=regexprep(AT92,'[*_uw]3','');
+AT94=regexprep(AT93,'[.*]\s',' ');
+AT95=regexprep(AT94,'[+]\s',' ');
+AT96=regexprep(AT95,'[-]\s','-');
+AT97=regexprep(AT96,'[.\s]\s',' ');
+AT98=regexp(AT97,'\s*','split');
+K9=str2double(AT98(1:end));
+
+N10=feval(funN10,E,P,Re2,alf2,lamb2,r3_(1),r3_(2),r3_(3),u3_(1),u3_(2),u3_(3));
+O10=(h/2)*sum(N10.*p);
+NP10=feval(funN10,E1,P,Re2,alf2,lamb2,r3_(1),r3_(2),r3_(3),u3_(1),u3_(2),u3_(3));
+OP10=(h/4)*sum(NP10.*p1);
+I10=(4*O10-OP10)/3;
+I10=vpa(I10);
+AT100=vectorize(I10);
+AT101=regexprep(AT100,'[*_uw]1','');
+AT102=regexprep(AT101,'[*_uw]2','');
+AT103=regexprep(AT102,'[*_uw]3','');
+AT104=regexprep(AT103,'[.*]\s',' ');
+AT105=regexprep(AT104,'[+]\s',' ');
+AT106=regexprep(AT105,'[-]\s','-');
+AT107=regexprep(AT106,'[.\s]\s',' ');
+AT108=regexp(AT107,'\s*','split');
+K10=str2double(AT108([3 2 1 4]));
+
+N11=feval(funN11,E,P,Re2,alf2,lamb2,r3_(1),r3_(2),r3_(3),u3_(1),u3_(2),u3_(3));
+O11=(h/2)*sum(N11.*p);
+NP11=feval(funN11,E1,P,Re2,alf2,lamb2,r3_(1),r3_(2),r3_(3),u3_(1),u3_(2),u3_(3));
+OP11=(h/4)*sum(NP11.*p1);
+I11=(4*O11-OP11)/3;
+I11=vpa(I11);
+AT110=vectorize(I11);
+AT111=regexprep(AT110,'[*_uw]1','');
+AT112=regexprep(AT111,'[*_uw]2','');
+AT113=regexprep(AT112,'[*_uw]3','');
+AT114=regexprep(AT113,'[.*]\s',' ');
+AT115=regexprep(AT114,'[+]\s',' ');
+AT116=regexprep(AT115,'[-]\s','-');
+AT117=regexprep(AT116,'[.\s]\s',' ');
+AT118=regexp(AT117,'\s*','split');
+K11=str2double(AT118(1:end));
+
+N12=feval(funN12,E,P,Re2,alf2,lamb2,r3_(1),r3_(2),r3_(3),u3_(1),u3_(2),u3_(3));
+O12=(h/2)*sum(N12.*p);
+NP12=feval(funN12,E1,P,Re2,alf2,lamb2,r3_(1),r3_(2),r3_(3),u3_(1),u3_(2),u3_(3));
+OP12=(h/4)*sum(NP12.*p1);
+I12=(4*O12-OP12)/3;
+I12=vpa(I12);
+AT120=vectorize(I12);
+AT121=regexprep(AT120,'[*_uw]1','');
+AT122=regexprep(AT121,'[*_uw]2','');
+AT123=regexprep(AT122,'[*_uw]3','');
+AT124=regexprep(AT123,'[.*]\s',' ');
+AT125=regexprep(AT124,'[+]\s',' ');
+AT126=regexprep(AT125,'[-]\s','-');
+AT127=regexprep(AT126,'[.\s]\s',' ');
+AT128=regexp(AT127,'\s*','split');
+K12=str2double(AT128(1:end));
+
+
+%% SECCIÓN 5: MATRIZ DE RIGIDEZ GLOBAL (si se considera sólo un elemento por región)
+
+% K es la matriz de rigidez global CON 1 ELEMENTO POR REGIÓN
+% Las condiciones de contorno internas se autoeliminan, sólo se introdujo la condición w(3)=0
+K_L=[K1(1), K1(2), K1(3), K1(4), 0, 0, 0, 0, 0;
+    K2(1), K2(2), K2(3), K2(4), K2(5), 0, 0, 0, 0;
+    K3(1)-1, K3(2)+4, K3(3)+K7(1)-3-3*Ep, K3(4), K3(5), K7(2)+4*Ep, K7(3)-Ep, 0, 0;
+    0, 0, 0, K4(1), 0, 0, 0, 0, 0;
+    K5(1), 0, K5(2), K5(3), K5(4), 0, 0, 0, 0;
+    0, 0, K8(1), 0, 0, K8(2), K8(3), 0, 0;
+    0, 0, K9(1)-1, 0, 0, K9(2)+4, K9(3)+K10(1)-3-3*lamb2-beta*alf2, K10(2)+4*lamb2, K10(3)-lamb2;
+    0, 0, 0, 0, 0, 0, K11(1), K11(2), K11(3);
+    0, 0, 0, 0, 0, 0, K12(1), K12(2), K12(3)];
+%     1, -4, 3+3*Ep, 0, 0, -4*Ep, Ep, 0, 0;% Condición salto de esfuerzos entre Micropolar y Newtoniano
+%     0, 0, 1, 0, 0, -4, 3+3*lamb2+beta*alf2, -4*lamb2, lamb2]% condición salto esfuerzos Newtoniano Poroso
+% KI son los términos independientes de la matriz de rigidez local
+% K_LI=[0;K2(7);K3(7)+K7(4);0;0;K8(4);K9(4)+K10(4);K11(4);K12(4)];
+K_LI=[0;-K2(7);-K3(7)-K7(4);0;0;-K9(4);-K9(4)-K10(4);-K11(4);-K12(4)];
+
+U=K_L\K_LI;
+vpa(U)
+
+%% SECCIÓN 6: Graficado de resultados para un elemento por región
+figure(1)
+r=[0 r1_(2) r1_(3) r2_(2) r2_(3) r3_(2) r3_(3)];
+plot(r,U([1 2 3 6 7 8 9]))
+hold on
+% plot(r,U([1 2 3 6 7 8 9]))
+xlabel('R')
+ylabel('u - Velocidad de flujo')
+legend('alf1=3','alf1=5','alf1=7','alf1=9','alf1=11')
+
+figure(2)
+r=[0 0.5 1];
+plot(r,[U(4) U(5) 0])
+hold on
+% plot(r,[U(4) U(5) 0])
+xlabel('R')
+ylabel('w - Velocidad microrotacional')
+legend('alf1=3','alf1=5','alf1=7','alf1=9','alf1=11')
+
+figure(3)
+r=[0 r1_(2) r1_(3) r2_(2) r2_(3) r3_(2) r3_(3)];
+plot(r,U([1 2 3 6 7 8 9]))
+hold on
+plot(r,U([1 2 3 6 7 8 9]))
+xlabel('R')
+ylabel('u - Velocidad de flujo')
+legend('P=5','P=6.5','P=8','P=9.5','P=11')
+
+figure(4)
+r=[0 0.5 1];
+plot(r,[U(4) U(5) 0])
+hold on
+plot(r,[U(4) U(5) 0])
+xlabel('R')
+ylabel('w - Velocidad microrotacional')
+legend('P=5','P=6.5','P=8','P=9.5','P=11')
+
+% Se pueden construir más gráficos variando los valores de los parámetros de la Sección 3
